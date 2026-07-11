@@ -10,15 +10,30 @@ export default function Navbar() {
   const router = useRouter();
 
   const [user, setUser] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     async function getUser() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-      setUser(user);
+  setUser(user);
+
+  if (user) {
+    const { data } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (data?.role === "admin") {
+      setIsAdmin(true);
+    } else {
+      setIsAdmin(false);
     }
+  }
+}
 
     getUser();
 
@@ -74,6 +89,14 @@ export default function Navbar() {
           >
             Notes
           </Link>
+          {isAdmin && (
+  <Link
+    href="/admin"
+    className="hover:text-blue-600 font-semibold"
+  >
+    Admin
+  </Link>
+)}
 
           {user ? (
             <>
