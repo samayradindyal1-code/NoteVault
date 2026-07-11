@@ -56,7 +56,7 @@ npm run dev
 
 ## 👩‍💻 Author
 
-**Samayra Dindyal**
+**Samayra**
 
 
 ---
