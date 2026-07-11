@@ -17,16 +17,37 @@ export default function LoginPage(){
 
       if(user){
 
-        const {error} = await supabase
-        .from("users")
-        .upsert({
-          id:user.id,
-          name:user.user_metadata.full_name,
-          email:user.email,
-          photo:user.user_metadata.avatar_url,
-          role:"student",
+        // Check if user already exists
+const { data: existingUser } = await supabase
+  .from("users")
+  .select("id")
+  .eq("id", user.id)
+  .maybeSingle();
 
-        });
+let error = null;
+
+if (!existingUser) {
+  // New user → create as student
+  ({ error } = await supabase
+    .from("users")
+    .insert({
+      id: user.id,
+      name: user.user_metadata.full_name,
+      email: user.email,
+      photo: user.user_metadata.avatar_url,
+      role: "student",
+    }));
+} else {
+  // Existing user → update details only, role untouched
+  ({ error } = await supabase
+    .from("users")
+    .update({
+      name: user.user_metadata.full_name,
+      email: user.email,
+      photo: user.user_metadata.avatar_url,
+    })
+    .eq("id", user.id));
+}
         if(error){
 
           console.log(error);
@@ -51,7 +72,10 @@ export default function LoginPage(){
       provider:"google",
 
       options:{
-        redirectTo:"http://localhost:3000/login",
+        redirectTo:
+  process.env.NODE_ENV === "development"
+    ? "http://localhost:3000/login"
+    : "https://note-vault-sandy.vercel.app/login",
 
       },
 
