@@ -24,12 +24,19 @@ export default async function AdminPage() {
     redirect("/");
   }
 
-  const [{ count: totalUsers }, { count: totalNotes }, { count: totalPurchases }] =
-    await Promise.all([
-      supabase.from("users").select("*", { count: "exact", head: true }),
-      supabase.from("notes").select("*", { count: "exact", head: true }),
-      supabase.from("purchases").select("*", { count: "exact", head: true }),
-    ]);
+  const [
+  { count: totalUsers },
+  { count: totalNotes },
+  { count: totalPurchases },
+  { count: totalSubjects },
+  { count: totalSemesters },
+] = await Promise.all([
+  supabase.from("users").select("*", { count: "exact", head: true }),
+  supabase.from("notes").select("*", { count: "exact", head: true }),
+  supabase.from("purchases").select("*", { count: "exact", head: true }),
+  supabase.from("subjects").select("*", { count: "exact", head: true }),
+  supabase.from("semesters").select("*", { count: "exact", head: true }),
+]);
 
     const { data: notes } = await supabase
   .from("notes")
@@ -54,7 +61,7 @@ export default async function AdminPage() {
         Welcome back, Admin 👋
       </p>
 
-      <div className="grid md:grid-cols-3 gap-6 mt-10">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mt-10">
 
         <div className="rounded-xl bg-white shadow p-6">
           <h2 className="text-lg text-gray-500">
@@ -80,11 +87,30 @@ export default async function AdminPage() {
           <h2 className="text-lg text-gray-500">
             Total Purchases
           </h2>
-
           <p className="text-4xl font-bold mt-3">
             {totalPurchases ?? 0}
           </p>
         </div>
+
+        <div className="rounded-xl bg-white shadow p-6">
+  <h2 className="text-lg text-gray-500">
+    Total Subjects
+  </h2>
+
+  <p className="text-4xl font-bold mt-3">
+    {totalSubjects ?? 0}
+  </p>
+</div>
+
+<div className="rounded-xl bg-white shadow p-6">
+  <h2 className="text-lg text-gray-500">
+    Total Semesters
+  </h2>
+
+  <p className="text-4xl font-bold mt-3">
+    {totalSemesters ?? 0}
+  </p>
+</div>
 
       </div>
 
