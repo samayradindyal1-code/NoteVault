@@ -57,7 +57,8 @@ if (!existingUser) {
 
           // redirect after login
 
-          router.push("/semester");
+          router.replace("/semester");
+router.refresh();
 
         }
       }
@@ -73,9 +74,9 @@ if (!existingUser) {
 
       options:{
         redirectTo:
-  process.env.NODE_ENV === "development"
-    ? "http://localhost:3000/login"
-    : "https://note-vault-sandy.vercel.app/login",
+process.env.NODE_ENV === "development"
+  ? "http://localhost:3000/auth/callback"
+  : "https://note-vault-sandy.vercel.app/auth/callback",
 
       },
 
