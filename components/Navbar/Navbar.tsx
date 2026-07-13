@@ -10,6 +10,7 @@ export default function Navbar() {
   const router = useRouter();
 
   const [user, setUser] = useState<any>(null);
+  const [role, setRole] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
@@ -27,11 +28,11 @@ export default function Navbar() {
       .eq("id", user.id)
       .single();
 
-    if (data?.role === "admin") {
-      setIsAdmin(true);
-    } else {
-      setIsAdmin(false);
-    }
+    setRole(data?.role ?? null);
+    setIsAdmin(data?.role === "admin");
+  } else {
+    setRole(null);
+    setIsAdmin(false);
   }
 }
 
@@ -89,6 +90,14 @@ export default function Navbar() {
           >
             Notes
           </Link>
+          {user && (
+  <Link
+    href="/dashboard"
+    className="hover:text-blue-600"
+  >
+    Dashboard
+  </Link>
+)}
           {isAdmin && (
   <Link
     href="/admin"
