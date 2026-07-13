@@ -1,42 +1,68 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+"use client";
 
-interface Props {
-  params: Promise<{
-    id: string;
-  }>;
-}
+import { createClient } from "@/lib/supabase/client";
+import { useEffect, useState } from "react";
+import { useRouter, useParams } from "next/navigation";
 
-export default async function EditSemesterPage({
-  params,
-}: Props) {
-  const { id } = await params;
+export default function EditSemesterPage() {
+  const supabase = createClient();
 
-  const supabase = await createClient();
+  const router = useRouter();
+  const params = useParams();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const id = params.id as string;
 
-  if (!user) {
-    redirect("/login");
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState("");
+  const [status, setStatus] = useState("available");
+
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchSemester();
+  }, []);
+
+  async function fetchSemester() {
+    const { data, error } = await supabase
+      .from("semesters")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setName(data.name);
+    setPrice(String(data.price));
+    setStatus(data.status);
   }
 
-  const { data: dbUser } = await supabase
-    .from("users")
-    .select("role")
-    .eq("id", user.id)
-    .single();
+  async function handleSave() {
+    setLoading(true);
 
-  if (dbUser?.role !== "admin") {
-    redirect("/");
+    const { error } = await supabase
+      .from("semesters")
+      .update({
+        name,
+        price: Number(price),
+        status,
+      })
+      .eq("id", id);
+
+    setLoading(false);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    alert("Semester updated successfully.");
+
+    router.push("/admin/semesters");
+    router.refresh();
   }
-
-  const { data: semester } = await supabase
-    .from("semesters")
-    .select("*")
-    .eq("id", id)
-    .single();
 
   return (
     <main className="max-w-3xl mx-auto p-10">
@@ -53,7 +79,8 @@ export default async function EditSemesterPage({
           </label>
 
           <input
-            defaultValue={semester?.name}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             className="w-full rounded-lg border p-3"
           />
         </div>
@@ -64,7 +91,9 @@ export default async function EditSemesterPage({
           </label>
 
           <input
-            defaultValue={semester?.price}
+            type="number"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
             className="w-full rounded-lg border p-3"
           />
         </div>
@@ -75,7 +104,8 @@ export default async function EditSemesterPage({
           </label>
 
           <select
-            defaultValue={semester?.status}
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
             className="w-full rounded-lg border p-3"
           >
             <option value="available">Available</option>
@@ -84,8 +114,12 @@ export default async function EditSemesterPage({
           </select>
         </div>
 
-        <button className="rounded-lg bg-blue-600 px-6 py-3 text-white">
-          Save Changes
+        <button
+          onClick={handleSave}
+          disabled={loading}
+          className="rounded-lg bg-blue-600 px-6 py-3 text-white hover:bg-blue-700 disabled:bg-gray-400"
+        >
+          {loading ? "Saving..." : "Save Changes"}
         </button>
 
       </div>
