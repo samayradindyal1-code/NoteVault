@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import DeleteButton from "./DeleteButton";
 
 export default async function SubjectsPage() {
 
@@ -57,32 +58,51 @@ export default async function SubjectsPage() {
 
           <thead className="bg-slate-100">
 
-            <tr>
-              <th className="p-4 text-left">ID</th>
-              <th className="p-4 text-left">Subject</th>
-              <th className="p-4 text-left">Semester</th>
-            </tr>
+  <tr>
+    <th className="p-4 text-left">ID</th>
+    <th className="p-4 text-left">Subject</th>
+    <th className="p-4 text-left">Semester</th>
+    <th className="p-4 text-left">Action</th>
+  </tr>
 
-          </thead>
+</thead>
 
           <tbody>
 
             {subjects?.map((subject: any) => (
 
               <tr
-                key={subject.id}
-                className="border-t"
-              >
-                <td className="p-4">{subject.id}</td>
+  key={subject.id}
+  className="border-t"
+>
+  <td className="p-4">{subject.id}</td>
 
-                <td className="p-4">
-                  {subject.subject_name}
-                </td>
+  <td className="p-4">
+    {subject.subject_name}
+  </td>
 
-                <td className="p-4">
-                  {subject.semesters?.name}
-                </td>
-              </tr>
+  <td className="p-4">
+    {subject.semesters?.name}
+  </td>
+
+  <td className="p-4">
+
+  <div className="flex gap-2">
+
+    <Link
+      href={`/admin/subjects/edit/${subject.id}`}
+      className="rounded bg-yellow-500 px-4 py-2 text-white hover:bg-yellow-600"
+    >
+      Edit
+    </Link>
+
+    <DeleteButton id={subject.id} />
+
+  </div>
+
+</td>
+
+</tr>
 
             ))}
 
