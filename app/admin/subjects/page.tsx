@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
@@ -35,9 +36,20 @@ export default async function SubjectsPage() {
   return (
     <main className="max-w-7xl mx-auto p-10">
 
-      <h1 className="text-4xl font-bold text-blue-700">
-        Manage Subjects
-      </h1>
+      <div className="flex items-center justify-between">
+
+  <h1 className="text-4xl font-bold text-blue-700">
+    Manage Subjects
+  </h1>
+
+  <Link
+    href="/admin/subjects/add"
+    className="rounded-lg bg-blue-600 px-5 py-3 text-white hover:bg-blue-700"
+  >
+    + Add Subject
+  </Link>
+
+</div>
 
       <div className="mt-10 rounded-xl bg-white shadow overflow-hidden">
 
