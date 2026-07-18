@@ -130,6 +130,13 @@ export default async function AdminPage() {
     Manage Notes
   </Link>
 
+  <Link
+  href="/admin/subjects"
+  className="rounded-lg bg-purple-600 px-5 py-3 text-white hover:bg-purple-700"
+>
+  Manage Subjects
+</Link>
+
 </div>
 <div className="mt-14">
 

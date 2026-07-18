@@ -40,29 +40,33 @@ export default function EditSemesterPage() {
   }
 
   async function handleSave() {
-    setLoading(true);
+  setLoading(true);
 
-    const { error } = await supabase
-      .from("semesters")
-      .update({
-        name,
-        price: Number(price),
-        status,
-      })
-      .eq("id", id);
+  const { data, error } = await supabase
+    .from("semesters")
+    .update({
+      name,
+      price: Number(price),
+      status,
+    })
+    .eq("id", id)
+    .select();
 
-    setLoading(false);
+  setLoading(false);
 
-    if (error) {
-      alert(error.message);
-      return;
-    }
+  console.log("UPDATE DATA =", data);
+  console.log("UPDATE ERROR =", error);
 
-    alert("Semester updated successfully.");
-
-    router.push("/admin/semesters");
-    router.refresh();
+  if (error) {
+    alert(error.message);
+    return;
   }
+
+  alert("Update successful!");
+
+  router.push("/admin/semesters");
+  router.refresh();
+}
 
   return (
     <main className="max-w-3xl mx-auto p-10">
