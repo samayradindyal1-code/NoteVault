@@ -118,12 +118,11 @@ console.log("SIGNED URL ERROR:", error);
                 ):
                 (
             <Link
-                href={`/payment?semesterId=${subject.semester_id}`}
-                className="mt-5 inline-block rounded-lg bg-yellow-500 px-5 py-2 text-white"
-
-               >
-               🔒 Unlock Notes ₹50
-           </Link>
+  href={`/payment?semesterId=${subject.semester_id}`}
+  className="mt-5 inline-block rounded-lg bg-yellow-500 px-5 py-2 text-white hover:bg-yellow-600"
+>
+  {user ? "🔄 Renew / Unlock Notes ₹50" : "🔒 Login & Unlock ₹50"}
+</Link>
                 )
 
               }

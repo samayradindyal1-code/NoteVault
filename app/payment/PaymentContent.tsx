@@ -39,8 +39,12 @@ const user = session.user;
         .eq("semester_id", semesterId)
         .maybeSingle();
 
-      const expiryDate = new Date();
-      expiryDate.setMonth(expiryDate.getMonth() + 3);
+      // Fixed expiry for first purchase
+const firstExpiry = new Date("2026-11-20T23:59:59");
+
+// Renewal expiry (3 months from payment)
+const renewalExpiry = new Date();
+renewalExpiry.setMonth(renewalExpiry.getMonth() + 3);
 
       // Existing Purchase Found
       if (existingPurchase) {
@@ -54,30 +58,31 @@ const user = session.user;
         }
 
         // Renew Subscription
-        const { error } = await supabase
-          .from("purchases")
-          .update({
-            paid: true,
-            payment_id: "TEST_PAYMENT",
-            expiry_date: expiryDate.toISOString(),
-            created_at: new Date().toISOString(),
-          })
-          .eq("id", existingPurchase.id);
+const { error } = await supabase
+  .from("purchases")
+  .update({
+    paid: true,
+    payment_id: "TEST_PAYMENT",
+    expiry_date: renewalExpiry.toISOString(),
+    created_at: new Date().toISOString(),
+  })
+  .eq("id", existingPurchase.id);
 
         if (error) throw error;
 
         alert("Subscription renewed successfully 🎉");
       } else {
         // First Purchase
-        const { error } = await supabase
-          .from("purchases")
-          .insert({
-            user_id: user.id,
-            semester_id: semesterId,
-            payment_id: "TEST_PAYMENT",
-            paid: true,
-            expiry_date: expiryDate.toISOString(),
-            created_at: new Date().toISOString(),
+const { error } = await supabase
+  .from("purchases")
+  .insert({
+    user_id: user.id,
+    semester_id: semesterId,
+    payment_id: "TEST_PAYMENT",
+    paid: true,
+    expiry_date: firstExpiry.toISOString(),
+    created_at: new Date().toISOString(),
+  });ated_at: new Date().toISOString(),
           });
 
         if (error) throw error;
@@ -115,8 +120,12 @@ const user = session.user;
         </h2>
 
         <p className="mt-2 text-sm text-gray-500">
-          Valid for 3 Months
-        </p>
+  First access valid till <b>20 Nov 2026</b>
+</p>
+
+<p className="text-sm text-gray-500">
+  After expiry, every renewal gives 3 months access.
+</p>
 
         <button
           onClick={handlePayment}
