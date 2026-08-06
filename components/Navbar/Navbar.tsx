@@ -56,18 +56,18 @@ export default function Navbar() {
   }
 
   return (
-    <nav className="w-full bg-white shadow-md">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+    <nav className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white/80 shadow-md backdrop-blur-md">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-8 py-4">
 
         {/* Logo */}
 
         <Link href="/">
           <div>
-            <h1 className="text-2xl font-bold text-blue-700">
+            <h1 className="text-3xl font-extrabold text-blue-700 tracking-wide">
               📚 NoteVault
             </h1>
 
-            <p className="text-xs text-gray-500">
+            <p className="text-xs font-medium text-gray-500">
               by Samayra
             </p>
           </div>
@@ -124,7 +124,7 @@ export default function Navbar() {
             <>
               <Link
                 href="/login"
-                className="hover:text-blue-600"
+                className="cursor-pointer transition-all duration-300 hover:text-blue-600 hover:scale-105"
               >
                 Login
               </Link>

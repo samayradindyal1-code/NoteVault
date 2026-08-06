@@ -13,7 +13,7 @@ export default function SemesterCard({
   route,
 }: SemesterCardProps) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
+    <div className="group cursor-pointer rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-indigo-50 p-6 shadow-md transition-all duration-300 hover:-translate-y-2 hover:border-indigo-300 hover:shadow-2xl">
       <h2 className="text-2xl font-bold text-slate-900">
         {name}
       </h2>
