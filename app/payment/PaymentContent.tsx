@@ -82,12 +82,11 @@ const { error } = await supabase
     paid: true,
     expiry_date: firstExpiry.toISOString(),
     created_at: new Date().toISOString(),
-  });ated_at: new Date().toISOString(),
-          });
+  });
 
-        if (error) throw error;
+if (error) throw error;
 
-        alert("Payment Successful 🎉");
+alert("Payment Successful 🎉");
       }
 
       router.push(`/semester/${semesterId}`);
