@@ -122,6 +122,12 @@ export default async function AdminPage() {
   >
     Upload New Notes
   </Link>
+  <Link
+  href="/admin/semesters"
+  className="cursor-pointer rounded-lg bg-orange-600 px-6 py-3 text-white shadow-md transition-all duration-300 hover:scale-105 hover:bg-orange-700 hover:shadow-lg active:scale-95"
+>
+  Manage Semesters
+</Link>
 
   <Link
     href="/admin/notes"
