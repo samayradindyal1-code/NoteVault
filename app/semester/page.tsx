@@ -1,59 +1,47 @@
 import { createClient } from "@/lib/supabase/server";
-import Link from "next/link";
+import SemesterCard from "@/components/SemesterCard";
 
-export default async function SemesterList(){
+export default async function SemesterList() {
+  const supabase = await createClient();
 
-const supabase = await createClient();
-const {data: semesters}= await supabase
-.from("semesters")
-.select("*")
-.order("id");
-return(
+  const { data: semesters } = await supabase
+    .from("semesters")
+    .select("*")
+    .order("id");
 
-<div className="p-10">
-<h1 className="text-3xl font-bold mb-8">
-Select Semester
-</h1>
+  return (
+    <main className="min-h-screen bg-slate-50 px-6 py-12 sm:px-8 lg:px-12">
+      
+      {/* Header */}
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-10">
+          <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-indigo-600">
+            NoteVault
+          </p>
 
-<div className="grid md:grid-cols-4 gap-6">
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+            Select Your Semester
+          </h1>
 
-{
-semesters?.map((semester)=>(
+          <p className="mt-3 max-w-2xl text-base leading-7 text-slate-500">
+            Choose a semester to access Computer Science Engineering
+            notes and study materials.
+          </p>
+        </div>
 
-<Link
-href={`/semester/${semester.id}`}
-key={semester.id}
->
-
-<div className="border rounded-xl p-6 shadow hover:scale-105 transition">
-
-<h2 className="text-xl font-bold">
-{semester.name}
-</h2>
-
-
-<p className="mt-3 text-sm font-semibold">
-
-{
-semester.status === "available" 
-?
-"✅ Available"
-:
-semester.status === "upcoming"
-?
-"🔜 Coming Soon"
-:
-"🔒 Unavailable"
-}
-
-</p>
-
-</div>
-</Link>
-))
-}
-</div>
-
-</div>
-)
+        {/* Semester Cards */}
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {semesters?.map((semester) => (
+            <SemesterCard
+              key={semester.id}
+              id={semester.id}
+              name={semester.name}
+              status={semester.status}
+              route={`/semester/${semester.id}`}
+            />
+          ))}
+        </div>
+      </div>
+    </main>
+  );
 }
