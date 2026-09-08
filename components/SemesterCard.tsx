@@ -108,14 +108,18 @@ export default function SemesterCard({
         <Link
           href={route}
           className="
-            mt-8 flex w-full items-center justify-between
-            rounded-xl bg-indigo-600
-            px-5 py-3.5
-            font-semibold text-white
-            transition-all duration-200
-            hover:bg-indigo-700
-            active:scale-[0.98]
-          "
+  mt-8 flex w-full items-center justify-between
+  rounded-xl bg-indigo-600
+  px-5 py-3.5
+  font-semibold text-white
+  shadow-sm
+  transition-all duration-200
+  hover:-translate-y-0.5
+  hover:bg-indigo-700
+  hover:shadow-md
+  active:translate-y-0
+  active:scale-[0.98]
+"
         >
           <span>View Notes</span>
           <span className="text-lg">→</span>
