@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-
+import { createAdminClient } from "@/lib/supabase/admin";
 interface Props {
   params: Promise<{
     subjectId: string;
@@ -11,6 +11,7 @@ export default async function NotesPage({ params }: Props) {
   const { subjectId } = await params;
 
   const supabase = await createClient();
+  const admin = createAdminClient();
 
   // ---------------------------------
   // 1. Get logged-in user
@@ -95,9 +96,9 @@ export default async function NotesPage({ params }: Props) {
   const notesWithSignedUrl = hasAccess
     ? await Promise.all(
         (notes || []).map(async (note) => {
-          const { data, error } = await supabase.storage
-            .from("notes-pdf")
-            .createSignedUrl(note.pdf_url, 600); // 10 minutes
+          const { data, error } = await admin.storage
+  .from("notes-pdf")
+  .createSignedUrl(note.pdf_url, 600); // 10 minutes
 
           if (error) {
             return {
