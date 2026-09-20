@@ -1,6 +1,6 @@
 import Link from "next/link";
-
 import { createClient } from "@/lib/supabase/server";
+
 interface Props {
   params: Promise<{
     subjectId: string;
@@ -8,127 +8,208 @@ interface Props {
 }
 
 export default async function NotesPage({ params }: Props) {
-
   const { subjectId } = await params;
+
   const supabase = await createClient();
 
-  // Current logged in user
+  // ---------------------------------
+  // 1. Get logged-in user
+  // ---------------------------------
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Get notes
+  // ---------------------------------
+  // 2. Get subject details first
+  // ---------------------------------
 
-  const { data: notes } = await supabase
-    .from("notes")
-    .select("*")
-    .eq("subject_id", subjectId);
-
-
-  // Get subject details
-
-  const { data: subject } = await supabase
+  const { data: subject, error: subjectError } = await supabase
     .from("subjects")
-    .select("*")
+    .select("id, subject_name, semester_id")
     .eq("id", subjectId)
     .single();
 
-  // Payment access check
+  if (subjectError || !subject) {
+    return (
+      <main className="min-h-screen bg-slate-50 px-6 py-12">
+        <div className="mx-auto max-w-5xl text-center">
+          <h1 className="text-3xl font-bold text-slate-800">
+            Subject Not Found
+          </h1>
+
+          <p className="mt-3 text-slate-500">
+            The requested subject could not be found.
+          </p>
+
+          <Link
+            href="/semester"
+            className="mt-6 inline-flex rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white hover:bg-indigo-700"
+          >
+            ← Back to Semesters
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  // ---------------------------------
+  // 3. Check payment access
+  // ---------------------------------
 
   let hasAccess = false;
 
-  if(user && subject)
-  {
-
+  if (user) {
     const { data: purchase } = await supabase
-.from("purchases")
-.select("*")
-.eq("user_id", user.id)
-.eq("semester_id", subject.semester_id)
-.eq("paid", true)
-.gt("expiry_date", new Date().toISOString())
-.single();
+      .from("purchases")
+      .select("id, expiry_date")
+      .eq("user_id", user.id)
+      .eq("semester_id", subject.semester_id)
+      .eq("paid", true)
+      .gt("expiry_date", new Date().toISOString())
+      .order("expiry_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    if(purchase)
-    {
+    if (purchase) {
       hasAccess = true;
     }
-
   }
-const notesWithSignedUrl = hasAccess
-  ? await Promise.all(
-      (notes || []).map(async (note) => {
-        const { data, error } = await supabase.storage
-          .from("notes-pdf")
-          .createSignedUrl(note.pdf_url, 60);
 
-          console.log("FILE NAME:", note.pdf_url);
-console.log("SIGNED URL DATA:", data);
-console.log("SIGNED URL ERROR:", error);
+  // ---------------------------------
+  // 4. Only fetch notes AFTER access
+  // ---------------------------------
 
-        if (error) {
-          console.error(error);
-        }
+  const { data: notes } = hasAccess
+    ? await supabase
+        .from("notes")
+        .select("id, title, pdf_url, created_at")
+        .eq("subject_id", subjectId)
+        .order("id")
+    : { data: [] };
 
-        return {
-          ...note,
-          signedUrl: data?.signedUrl ?? "",
-        };
-      })
-    )
-  : (notes || []).map((note) => ({
-      ...note,
-      signedUrl: "",
-    }));
+  // ---------------------------------
+  // 5. Generate short-lived signed URLs
+  // ---------------------------------
+
+  const notesWithSignedUrl = hasAccess
+    ? await Promise.all(
+        (notes || []).map(async (note) => {
+          const { data, error } = await supabase.storage
+            .from("notes-pdf")
+            .createSignedUrl(note.pdf_url, 600); // 10 minutes
+
+          if (error) {
+            return {
+              ...note,
+              signedUrl: "",
+            };
+          }
+
+          return {
+            ...note,
+            signedUrl: data?.signedUrl ?? "",
+          };
+        })
+      )
+    : [];
+
+  // ---------------------------------
+  // 6. Page UI
+  // ---------------------------------
+
   return (
+    <main className="min-h-screen bg-slate-50 px-6 py-10">
+      <div className="mx-auto max-w-6xl">
 
-    <main className="max-w-6xl mx-auto px-6 py-10">
+        <Link
+          href={`/semester/${subject.semester_id}`}
+          className="text-sm font-semibold text-indigo-600 hover:text-indigo-800"
+        >
+          ← Back to Semester
+        </Link>
 
-      <h1 className="text-4xl font-bold mb-3">
-        {subject?.subject_name}
-      </h1>
-      <p className="text-gray-600 mb-8">
-        Notes
-      </p>
+        <div className="mt-8 mb-8">
+          <h1 className="text-4xl font-bold text-slate-900">
+            {subject.subject_name}
+          </h1>
 
-      <div className="space-y-5">
+          <p className="mt-2 text-slate-500">
+            Notes
+          </p>
+        </div>
 
-        {
-          notesWithSignedUrl.map((note) => (
+        {!hasAccess ? (
+          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
 
-            <div
-              key={note.id}
-              className="rounded-xl border p-6 bg-white shadow"
-            >
-              <h2 className="text-2xl font-semibold">
-                {note.title}
-              </h2>
-              {
-                hasAccess ?
-                (
-                  <a
-  href={note.signedUrl}
-  target="_blank"
-  className="mt-5 inline-block rounded-lg bg-green-600 px-5 py-2 text-white"
->
-  Open PDF
-</a>
-
-                ):
-                (
-            <Link
-  href={`/payment?semesterId=${subject.semester_id}`}
-  className="mt-5 inline-block rounded-lg bg-yellow-500 px-5 py-2 text-white hover:bg-yellow-600"
->
-  {user ? "🔄 Renew / Unlock Notes ₹50" : "🔒 Login & Unlock ₹50"}
-</Link>
-                )
-
-              }
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-2xl">
+              🔒
             </div>
-          ))
-        }
+
+            <h2 className="mt-5 text-2xl font-bold text-slate-800">
+              Notes Locked
+            </h2>
+
+            <p className="mt-2 text-slate-500">
+              {user
+                ? "Purchase access to view these notes."
+                : "Please login and purchase access to view these notes."}
+            </p>
+
+            <Link
+              href={`/payment?semesterId=${subject.semester_id}`}
+              className="mt-6 inline-flex rounded-xl bg-indigo-600 px-6 py-3 font-semibold text-white transition hover:bg-indigo-700"
+            >
+              {user
+                ? "🔄 Unlock Notes ₹50"
+                : "🔒 Login & Unlock ₹50"}
+            </Link>
+
+          </div>
+        ) : notesWithSignedUrl.length > 0 ? (
+          <div className="space-y-5">
+
+            {notesWithSignedUrl.map((note) => (
+              <div
+                key={note.id}
+                className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+              >
+                <h2 className="text-xl font-bold text-slate-800">
+                  {note.title}
+                </h2>
+
+                {note.signedUrl ? (
+                  <a
+                    href={note.signedUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-5 inline-flex rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white transition hover:bg-indigo-700"
+                  >
+                    Open PDF →
+                  </a>
+                ) : (
+                  <p className="mt-4 text-sm text-red-500">
+                    Unable to open this PDF right now.
+                  </p>
+                )}
+              </div>
+            ))}
+
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <div className="text-4xl">📚</div>
+
+            <h2 className="mt-4 text-xl font-bold text-slate-800">
+              No Notes Available
+            </h2>
+
+            <p className="mt-2 text-slate-500">
+              Notes for this subject have not been uploaded yet.
+            </p>
+          </div>
+        )}
+
       </div>
     </main>
   );
