@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { v4 as uuidv4 } from "uuid";
 
 export default function UploadPage() {
   const supabase = createClient();
@@ -18,32 +17,31 @@ export default function UploadPage() {
 
   const [loading, setLoading] = useState(false);
 
-useEffect(() => {
-  checkAdmin();
-  fetchSemesters();
-}, []);
+  useEffect(() => {
+    checkAdmin();
+    fetchSemesters();
+  }, []);
 
-async function checkAdmin() {
+  async function checkAdmin() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
 
-  if (!user) {
-    window.location.href = "/login";
-    return;
+    const { data } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (data?.role !== "admin") {
+      window.location.href = "/";
+    }
   }
-
-  const { data } = await supabase
-    .from("users")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (data?.role !== "admin") {
-    window.location.href = "/";
-  }
-}
 
   async function fetchSemesters() {
     const { data, error } = await supabase
@@ -101,30 +99,36 @@ async function checkAdmin() {
       return;
     }
 
+    if (file.type !== "application/pdf") {
+      alert("Only PDF files are allowed.");
+      return;
+    }
+
+    if (file.size > 50 * 1024 * 1024) {
+      alert("PDF size must be 50 MB or less.");
+      return;
+    }
+
     try {
       setLoading(true);
 
-      const fileName = `${uuidv4()}-${file.name}`;
+      const formData = new FormData();
 
-      const { error: uploadError } = await supabase.storage
-        .from("notes-pdf")
-        .upload(fileName, file);
+      formData.append("semesterId", selectedSemester);
+      formData.append("subjectId", selectedSubject);
+      formData.append("title", title.trim());
+      formData.append("file", file);
 
-      if (uploadError) {
-        throw uploadError;
+      const response = await fetch("/api/admin/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Upload failed.");
       }
-
-      const { error: insertError } = await supabase
-  .from("notes")
-  .insert({
-    subject_id: Number(selectedSubject),
-    title: title,
-    pdf_url: fileName,
-  });
-
-if (insertError) {
-  throw insertError;
-} 
 
       alert("Notes uploaded successfully.");
 
@@ -133,10 +137,18 @@ if (insertError) {
       setSubjects([]);
       setTitle("");
       setFile(null);
+
+      const fileInput = document.getElementById(
+        "pdf-file"
+      ) as HTMLInputElement | null;
+
+      if (fileInput) {
+        fileInput.value = "";
+      }
     } catch (error: any) {
-  console.log("FULL ERROR:", error);
-  alert(JSON.stringify(error, null, 2));
-} finally {
+      console.error("Upload error:", error);
+      alert(error.message || "Something went wrong.");
+    } finally {
       setLoading(false);
     }
   }
@@ -144,7 +156,6 @@ if (insertError) {
   return (
     <main className="min-h-screen bg-slate-100 p-10">
       <div className="mx-auto max-w-3xl rounded-2xl bg-white p-8 shadow-lg">
-
         <h1 className="text-3xl font-bold text-blue-700">
           Upload Notes
         </h1>
@@ -154,7 +165,6 @@ if (insertError) {
         </p>
 
         <div className="mt-8 space-y-6">
-
           <div>
             <label className="mb-2 block font-medium">
               Semester
@@ -187,7 +197,9 @@ if (insertError) {
             <select
               className="w-full rounded-lg border p-3"
               value={selectedSubject}
-              onChange={(e) => setSelectedSubject(e.target.value)}
+              onChange={(e) =>
+                setSelectedSubject(e.target.value)
+              }
             >
               <option value="">Select Subject</option>
 
@@ -219,8 +231,9 @@ if (insertError) {
             </label>
 
             <input
+              id="pdf-file"
               type="file"
-              accept=".pdf"
+              accept="application/pdf,.pdf"
               onChange={(e) => {
                 if (e.target.files?.length) {
                   setFile(e.target.files[0]);
@@ -228,6 +241,10 @@ if (insertError) {
               }}
               className="w-full rounded-lg border p-3"
             />
+
+            <p className="mt-2 text-sm text-gray-500">
+              PDF only · Maximum 50 MB
+            </p>
           </div>
 
           <button
@@ -238,9 +255,7 @@ if (insertError) {
           >
             {loading ? "Uploading..." : "Upload PDF"}
           </button>
-
         </div>
-
       </div>
     </main>
   );
