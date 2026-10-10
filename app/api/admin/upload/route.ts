@@ -3,9 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { v4 as uuidv4 } from "uuid";
 
+export const runtime = "nodejs";
+
 export async function POST(request: Request) {
   try {
-    // 1. Check logged-in user
     const supabase = await createClient();
 
     const {
@@ -14,12 +15,11 @@ export async function POST(request: Request) {
 
     if (!user) {
       return NextResponse.json(
-        { error: "You must be logged in." },
+        { error: "Please log in first." },
         { status: 401 }
       );
     }
-
-    // 2. Check admin role
+    
     const { data: dbUser, error: userError } = await supabase
       .from("users")
       .select("role")
@@ -33,119 +33,134 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. Read form data
-    const formData = await request.formData();
-
-    const semesterId = formData.get("semesterId");
-    const subjectId = formData.get("subjectId");
-    const title = formData.get("title");
-    const file = formData.get("file");
-
-    // 4. Validate fields
-    if (!semesterId || !subjectId || !title || !file) {
-      return NextResponse.json(
-        { error: "All fields are required." },
-        { status: 400 }
-      );
-    }
-
-    if (!(file instanceof File)) {
-      return NextResponse.json(
-        { error: "Invalid file." },
-        { status: 400 }
-      );
-    }
-
-    // 5. Only PDF allowed
-    if (file.type !== "application/pdf") {
-      return NextResponse.json(
-        { error: "Only PDF files are allowed." },
-        { status: 400 }
-      );
-    }
-
-    // 6. Maximum 50 MB
-    const MAX_FILE_SIZE = 50 * 1024 * 1024;
-
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        { error: "PDF size must be 50 MB or less." },
-        { status: 400 }
-      );
-    }
-
-    // 7. Verify subject belongs to selected semester
+    const body = await request.json();
     const admin = createAdminClient();
+
+    const semesterId = Number(body.semesterId);
+    const subjectId = Number(body.subjectId);
+    const title =
+      typeof body.title === "string" ? body.title.trim() : "";
+
+    if (
+      !Number.isSafeInteger(semesterId) ||
+      semesterId <= 0 ||
+      !Number.isSafeInteger(subjectId) ||
+      subjectId <= 0 ||
+      !title
+    ) {
+      return NextResponse.json(
+        { error: "Invalid semester, subject, or title." },
+        { status: 400 }
+      );
+    }
 
     const { data: subject, error: subjectError } = await admin
       .from("subjects")
       .select("id, semester_id")
-      .eq("id", Number(subjectId))
+      .eq("id", subjectId)
       .single();
 
     if (
       subjectError ||
       !subject ||
-      subject.semester_id !== Number(semesterId)
+      Number(subject.semester_id) !== semesterId
     ) {
       return NextResponse.json(
-        { error: "Invalid subject or semester." },
+        { error: "Subject does not belong to this semester." },
         { status: 400 }
       );
     }
 
-    // 8. Generate private storage filename
-    const fileName = `${uuidv4()}.pdf`;
+    // Phase 1: Create a signed URL for direct private storage upload.
+    if (body.phase === "create-upload") {
+      if (
+        body.fileType !== "application/pdf" ||
+        !Number.isFinite(body.fileSize) ||
+        body.fileSize <= 0 ||
+        body.fileSize > 50 * 1024 * 1024
+      ) {
+        return NextResponse.json(
+          { error: "Choose a PDF up to 50 MB." },
+          { status: 400 }
+        );
+      }
 
-    // 9. Upload using server-side secret client
-    const { error: uploadError } = await admin.storage
-      .from("notes-pdf")
-      .upload(fileName, file, {
-        contentType: "application/pdf",
-        upsert: false,
-      });
+      const path = `${uuidv4()}.pdf`;
 
-    if (uploadError) {
-      console.error("Storage upload error:", uploadError);
-
-      return NextResponse.json(
-        { error: "PDF upload failed." },
-        { status: 500 }
-      );
-    }
-
-    // 10. Save note in database
-    const { error: insertError } = await admin
-      .from("notes")
-      .insert({
-        subject_id: Number(subjectId),
-        title: String(title).trim(),
-        pdf_url: fileName,
-      });
-
-    // 11. If DB insert fails, remove uploaded PDF
-    if (insertError) {
-      await admin.storage
+      const { data, error } = await admin.storage
         .from("notes-pdf")
-        .remove([fileName]);
+        .createSignedUploadUrl(path);
 
-      console.error("Notes insert error:", insertError);
+      if (error || !data) {
+        console.error("Signed upload URL error:", error);
+        return NextResponse.json(
+          { error: "Could not prepare PDF upload." },
+          { status: 500 }
+        );
+      }
 
-      return NextResponse.json(
-        { error: "Note could not be saved." },
-        { status: 500 }
-      );
+      return NextResponse.json({
+        path,
+        token: data.token,
+      });
     }
 
-    return NextResponse.json({
-      success: true,
-      message: "Notes uploaded successfully.",
-    });
-  } catch (error) {
-    console.error("Upload API error:", error);
+    // Phase 2: Confirm the uploaded file exists, then save its note record.
+    if (body.phase === "save-note") {
+      const path = body.path;
+
+      if (
+        typeof path !== "string" ||
+        !/^[0-9a-f-]{36}\.pdf$/i.test(path)
+      ) {
+        return NextResponse.json(
+          { error: "Invalid uploaded file path." },
+          { status: 400 }
+        );
+      }
+
+      const { data: files, error: listError } = await admin.storage
+        .from("notes-pdf")
+        .list("", { search: path, limit: 100 });
+
+      if (listError || !files?.some((item) => item.name === path)) {
+        return NextResponse.json(
+          { error: "Uploaded PDF was not found in private storage." },
+          { status: 400 }
+        );
+      }
+
+      const { error: insertError } = await admin
+        .from("notes")
+        .insert({
+          subject_id: subjectId,
+          title,
+          pdf_url: path,
+        });
+
+      if (insertError) {
+        console.error("Note database insert error:", insertError);
+        return NextResponse.json(
+          { error: "PDF uploaded, but note could not be saved." },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Notes uploaded successfully.",
+      });
+    }
 
     return NextResponse.json(
-      { error: "Something went wrong." },
+      { error: "Invalid upload operation." },
+      { status: 400 }
+    );
+  } catch (error) {
+    console.error("Admin upload API error:", error);
+
+    return NextResponse.json(
+      { error: "Something went wrong while uploading." },
       { status: 500 }
     );
   }
