@@ -1,104 +1,157 @@
 "use client";
 
-import { createClient } from "@/lib/supabase/client";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
 
 export default function PaymentPage() {
-  const supabase = createClient();
   const searchParams = useSearchParams();
   const router = useRouter();
 
   const semesterId = Number(searchParams.get("semesterId"));
-
   const [loading, setLoading] = useState(false);
+  const [razorpayLoaded, setRazorpayLoaded] = useState(false);
+
+  // Load Razorpay Checkout
+  useEffect(() => {
+    if (window.Razorpay) {
+      setRazorpayLoaded(true);
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+
+    script.onload = () => {
+      setRazorpayLoaded(true);
+    };
+
+    script.onerror = () => {
+      alert("Razorpay could not be loaded. Please try again.");
+    };
+
+    document.body.appendChild(script);
+
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
 
   async function handlePayment() {
     try {
-      setLoading(true);
-
-      // Current User
-      const {
-  data: { session },
-} = await supabase.auth.getSession();
-
-console.log("SESSION =", session);
-
-if (!session?.user) {
-  alert("Please login first.");
-  return;
-}
-
-const user = session.user;
-
-      // Check Existing Purchase
-      const { data: existingPurchase } = await supabase
-        .from("purchases")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("semester_id", semesterId)
-        .maybeSingle();
-
-      // Fixed expiry for first purchase
-const firstExpiry = new Date("2026-11-20T23:59:59");
-
-// Renewal expiry (3 months from payment)
-const renewalExpiry = new Date();
-renewalExpiry.setMonth(renewalExpiry.getMonth() + 3);
-
-      // Existing Purchase Found
-      if (existingPurchase) {
-        const isActive =
-          new Date(existingPurchase.expiry_date) > new Date();
-
-        if (isActive) {
-          alert("You already have access to this semester.");
-          router.push(`/semester/${semesterId}`);
-          return;
-        }
-
-        // Renew Subscription
-const { error } = await supabase
-  .from("purchases")
-  .update({
-    paid: true,
-    payment_id: "TEST_PAYMENT",
-    expiry_date: renewalExpiry.toISOString(),
-    created_at: new Date().toISOString(),
-  })
-  .eq("id", existingPurchase.id);
-
-        if (error) throw error;
-
-        alert("Subscription renewed successfully 🎉");
-      } else {
-        // First Purchase
-const { error } = await supabase
-  .from("purchases")
-  .insert({
-    user_id: user.id,
-    semester_id: semesterId,
-    payment_id: "TEST_PAYMENT",
-    paid: true,
-    expiry_date: firstExpiry.toISOString(),
-    created_at: new Date().toISOString(),
-  });
-
-if (error) throw error;
-
-alert("Payment Successful 🎉");
+      if (!semesterId || !Number.isSafeInteger(semesterId)) {
+        alert("Invalid semester.");
+        return;
       }
 
-      router.push(`/semester/${semesterId}`);
-    } catch (error: any) {
-  console.log("FULL ERROR =", error);
+      if (!razorpayLoaded || !window.Razorpay) {
+        alert("Payment system is still loading. Please try again.");
+        return;
+      }
 
-  if (error?.message) {
-    alert(error.message);
-  } else {
-    alert(JSON.stringify(error, null, 2));
-  }
-} finally {
+      setLoading(true);
+
+      // 1. Create secure Razorpay order
+      const orderResponse = await fetch("/api/payment/create-order", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          semesterId,
+        }),
+      });
+
+      const orderData = await orderResponse.json();
+
+      if (!orderResponse.ok) {
+        throw new Error(
+          orderData?.error || "Could not create payment order."
+        );
+      }
+
+      // 2. Open Razorpay Checkout
+      const options = {
+        key: orderData.keyId,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: "NoteVault",
+        description: "Semester Notes Access",
+        order_id: orderData.orderId,
+
+        handler: async function (response: any) {
+          try {
+            setLoading(true);
+
+            // 3. Verify payment on our server
+            const verifyResponse = await fetch("/api/payment/verify", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              }),
+            });
+
+            const verifyData = await verifyResponse.json();
+
+            if (!verifyResponse.ok || !verifyData.verified) {
+              throw new Error(
+                verifyData?.error || "Payment verification failed."
+              );
+            }
+
+            alert("Payment verified successfully 🎉");
+
+            // Purchase activation will be handled securely
+            // on the server after verification.
+
+            router.push(`/semester/${semesterId}`);
+          } catch (error: any) {
+            console.error("Verification error:", error);
+            alert(error?.message || "Payment verification failed.");
+          } finally {
+            setLoading(false);
+          }
+        },
+
+        modal: {
+          ondismiss: function () {
+            setLoading(false);
+          },
+        },
+
+        theme: {
+          color: "#2563eb",
+        },
+      };
+
+      const razorpay = new window.Razorpay(options);
+
+      razorpay.on("payment.failed", function (response: any) {
+        console.error("Payment failed:", response?.error);
+
+        alert(
+          response?.error?.description ||
+            "Payment failed. Please try again."
+        );
+
+        setLoading(false);
+      });
+
+      razorpay.open();
+    } catch (error: any) {
+      console.error("Payment error:", error);
+      alert(error?.message || "Something went wrong.");
       setLoading(false);
     }
   }
@@ -119,19 +172,19 @@ alert("Payment Successful 🎉");
         </h2>
 
         <p className="mt-2 text-sm text-gray-500">
-  First access valid till <b>20 Nov 2026</b>
-</p>
-
-<p className="text-sm text-gray-500">
-  After expiry, every renewal gives 3 months access.
-</p>
+          Access valid for <b>2 months</b> from the date of purchase.
+        </p>
 
         <button
           onClick={handlePayment}
-          disabled={loading}
+          disabled={loading || !razorpayLoaded}
           className="mt-8 w-full rounded-lg bg-blue-600 py-3 text-white font-semibold hover:bg-blue-700 disabled:bg-gray-400"
         >
-          {loading ? "Processing..." : "Pay ₹50"}
+          {loading
+            ? "Processing..."
+            : !razorpayLoaded
+            ? "Loading Payment..."
+            : "Pay ₹50"}
         </button>
       </div>
     </div>
