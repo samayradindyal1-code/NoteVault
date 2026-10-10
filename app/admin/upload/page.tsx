@@ -124,11 +124,24 @@ export default function UploadPage() {
         body: formData,
       });
 
-      const result = await response.json();
+     
+const responseText = await response.text();
 
-      if (!response.ok) {
-        throw new Error(result.error || "Upload failed.");
-      }
+let result: any;
+
+try {
+  result = JSON.parse(responseText);
+} catch {
+  console.error("Non-JSON upload response:", responseText);
+  throw new Error(
+    `Upload failed (HTTP ${response.status}). Check server response.`
+  );
+}
+
+if (!response.ok) {
+  throw new Error(result.error || "Upload failed.");
+}
+
 
       alert("Notes uploaded successfully.");
 
