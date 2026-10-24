@@ -1,69 +1,66 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function UploadPage() {
-  const supabase = createClient();
-
   const [semesters, setSemesters] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
-
   const [selectedSemester, setSelectedSemester] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("");
-
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
-
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    checkAdmin();
-    fetchSemesters();
+    const supabase = createClient();
+
+    async function initialize() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        window.location.href = "/login";
+        return;
+      }
+
+      const { data } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+      if (data?.role !== "admin") {
+        window.location.href = "/";
+        return;
+      }
+
+      const { data: semesterData, error } = await supabase
+        .from("semesters")
+        .select("*")
+        .eq("status", "available")
+        .order("id");
+
+      if (error) {
+        console.error(error);
+        alert("Could not load semesters.");
+        return;
+      }
+
+      setSemesters(semesterData || []);
+    }
+
+    void initialize();
   }, []);
 
-  async function checkAdmin() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      window.location.href = "/login";
-      return;
-    }
-
-    const { data } = await supabase
-      .from("users")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    if (data?.role !== "admin") {
-      window.location.href = "/";
-    }
-  }
-
-  async function fetchSemesters() {
-    const { data, error } = await supabase
-      .from("semesters")
-      .select("*")
-      .eq("status", "available")
-      .order("id");
-
-    if (error) {
-      console.error(error);
-      return;
-    }
-
-    setSemesters(data || []);
-  }
-
   async function fetchSubjects(semesterId: string) {
-    if (!semesterId) {
-      setSubjects([]);
-      return;
-    }
+    setSubjects([]);
 
+    if (!semesterId) return;
+
+    const supabase = createClient();
     const { data, error } = await supabase
       .from("subjects")
       .select("*")
@@ -72,6 +69,7 @@ export default function UploadPage() {
 
     if (error) {
       console.error(error);
+      alert("Could not load subjects.");
       return;
     }
 
@@ -79,69 +77,85 @@ export default function UploadPage() {
   }
 
   async function handleUpload() {
-    if (!selectedSemester) {
-      alert("Please select a semester.");
+    if (!selectedSemester || !selectedSubject || !title.trim() || !file) {
+      alert("Please select a semester, subject, title and PDF.");
       return;
     }
 
-    if (!selectedSubject) {
-      alert("Please select a subject.");
+    if (
+      file.type !== "application/pdf" ||
+      !file.name.toLowerCase().endsWith(".pdf")
+    ) {
+      alert("Please choose a valid PDF file.");
       return;
     }
 
-    if (!title.trim()) {
-      alert("Please enter notes title.");
+    if (file.size <= 0 || file.size > 50 * 1024 * 1024) {
+      alert("PDF size must be between 1 byte and 50 MB.");
       return;
     }
 
-    if (!file) {
-      alert("Please choose a PDF.");
-      return;
-    }
-
-    if (file.type !== "application/pdf") {
-      alert("Only PDF files are allowed.");
-      return;
-    }
-
-    if (file.size > 50 * 1024 * 1024) {
-      alert("PDF size must be 50 MB or less.");
-      return;
-    }
+    setLoading(true);
 
     try {
-      setLoading(true);
+      const supabase = createClient();
 
-      const formData = new FormData();
-
-      formData.append("semesterId", selectedSemester);
-      formData.append("subjectId", selectedSubject);
-      formData.append("title", title.trim());
-      formData.append("file", file);
-
-      const response = await fetch("/api/admin/upload", {
+      // Phase 1: Ask the authenticated server for an upload token.
+      const prepareResponse = await fetch("/api/admin/upload", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phase: "create-upload",
+          semesterId: selectedSemester,
+          subjectId: selectedSubject,
+          title: title.trim(),
+          fileType: file.type,
+          fileSize: file.size,
+        }),
       });
 
-     
-const responseText = await response.text();
+      const prepare = await prepareResponse.json();
 
-let result: any;
+      if (!prepareResponse.ok) {
+        throw new Error(prepare.error || "Could not prepare upload.");
+      }
 
-try {
-  result = JSON.parse(responseText);
-} catch {
-  console.error("Non-JSON upload response:", responseText);
-  throw new Error(
-    `Upload failed (HTTP ${response.status}). Check server response.`
-  );
-}
+      if (!prepare.path || !prepare.token) {
+        throw new Error("Upload details were not returned by the server.");
+      }
 
-if (!response.ok) {
-  throw new Error(result.error || "Upload failed.");
-}
+      // Phase 2: Upload the file directly to private Supabase Storage.
+      const { error: storageError } = await supabase.storage
+        .from("notes-pdf")
+        .uploadToSignedUrl(prepare.path, prepare.token, file, {
+          contentType: "application/pdf",
+          upsert: false,
+        });
 
+      if (storageError) {
+        throw new Error(`PDF upload failed: ${storageError.message}`);
+      }
+
+      // Phase 3: Save only metadata through the server API.
+      const saveResponse = await fetch("/api/admin/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phase: "save-note",
+          semesterId: selectedSemester,
+          subjectId: selectedSubject,
+          title: title.trim(),
+          path: prepare.path,
+        }),
+      });
+
+      const saveResult = await saveResponse.json();
+
+      if (!saveResponse.ok) {
+        throw new Error(
+          saveResult.error || "PDF uploaded but note could not be saved."
+        );
+      }
 
       alert("Notes uploaded successfully.");
 
@@ -155,12 +169,10 @@ if (!response.ok) {
         "pdf-file"
       ) as HTMLInputElement | null;
 
-      if (fileInput) {
-        fileInput.value = "";
-      }
-    } catch (error: any) {
+      if (fileInput) fileInput.value = "";
+    } catch (error) {
       console.error("Upload error:", error);
-      alert(error.message || "Something went wrong.");
+      alert(error instanceof Error ? error.message : "Upload failed.");
     } finally {
       setLoading(false);
     }
@@ -169,9 +181,7 @@ if (!response.ok) {
   return (
     <main className="min-h-screen bg-slate-100 p-10">
       <div className="mx-auto max-w-3xl rounded-2xl bg-white p-8 shadow-lg">
-        <h1 className="text-3xl font-bold text-blue-700">
-          Upload Notes
-        </h1>
+        <h1 className="text-3xl font-bold text-blue-700">Upload Notes</h1>
 
         <p className="mt-2 text-gray-500">
           Upload a new PDF for students.
@@ -179,21 +189,19 @@ if (!response.ok) {
 
         <div className="mt-8 space-y-6">
           <div>
-            <label className="mb-2 block font-medium">
-              Semester
-            </label>
-
+            <label className="mb-2 block font-medium">Semester</label>
             <select
               className="w-full rounded-lg border p-3"
               value={selectedSemester}
+              disabled={loading}
               onChange={(e) => {
-                setSelectedSemester(e.target.value);
+                const value = e.target.value;
+                setSelectedSemester(value);
                 setSelectedSubject("");
-                fetchSubjects(e.target.value);
+                void fetchSubjects(value);
               }}
             >
               <option value="">Select Semester</option>
-
               {semesters.map((semester) => (
                 <option key={semester.id} value={semester.id}>
                   {semester.name}
@@ -203,19 +211,14 @@ if (!response.ok) {
           </div>
 
           <div>
-            <label className="mb-2 block font-medium">
-              Subject
-            </label>
-
+            <label className="mb-2 block font-medium">Subject</label>
             <select
               className="w-full rounded-lg border p-3"
               value={selectedSubject}
-              onChange={(e) =>
-                setSelectedSubject(e.target.value)
-              }
+              disabled={loading}
+              onChange={(e) => setSelectedSubject(e.target.value)}
             >
               <option value="">Select Subject</option>
-
               {subjects.map((subject) => (
                 <option key={subject.id} value={subject.id}>
                   {subject.subject_name}
@@ -225,13 +228,11 @@ if (!response.ok) {
           </div>
 
           <div>
-            <label className="mb-2 block font-medium">
-              Notes Title
-            </label>
-
+            <label className="mb-2 block font-medium">Notes Title</label>
             <input
               type="text"
               value={title}
+              disabled={loading}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Complete Notes"
               className="w-full rounded-lg border p-3"
@@ -239,22 +240,15 @@ if (!response.ok) {
           </div>
 
           <div>
-            <label className="mb-2 block font-medium">
-              Choose PDF
-            </label>
-
+            <label className="mb-2 block font-medium">Choose PDF</label>
             <input
               id="pdf-file"
               type="file"
               accept="application/pdf,.pdf"
-              onChange={(e) => {
-                if (e.target.files?.length) {
-                  setFile(e.target.files[0]);
-                }
-              }}
+              disabled={loading}
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
               className="w-full rounded-lg border p-3"
             />
-
             <p className="mt-2 text-sm text-gray-500">
               PDF only · Maximum 50 MB
             </p>

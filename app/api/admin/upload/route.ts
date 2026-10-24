@@ -106,12 +106,14 @@ export async function POST(request: Request) {
     }
 
     // Phase 2: Confirm the uploaded file exists, then save its note record.
+    
+    // Phase 2: Confirm the uploaded file exists, then save its note record.
     if (body.phase === "save-note") {
       const path = body.path;
 
       if (
         typeof path !== "string" ||
-        !/^[0-9a-f-]{36}\.pdf$/i.test(path)
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.pdf$/i.test(path)
       ) {
         return NextResponse.json(
           { error: "Invalid uploaded file path." },
@@ -140,6 +142,16 @@ export async function POST(request: Request) {
 
       if (insertError) {
         console.error("Note database insert error:", insertError);
+
+        // Clean up the uploaded PDF if its database record cannot be saved.
+        const { error: cleanupError } = await admin.storage
+          .from("notes-pdf")
+          .remove([path]);
+
+        if (cleanupError) {
+          console.error("Uploaded PDF cleanup error:", cleanupError);
+        }
+
         return NextResponse.json(
           { error: "PDF uploaded, but note could not be saved." },
           { status: 500 }
@@ -151,6 +163,7 @@ export async function POST(request: Request) {
         message: "Notes uploaded successfully.",
       });
     }
+
 
     return NextResponse.json(
       { error: "Invalid upload operation." },
