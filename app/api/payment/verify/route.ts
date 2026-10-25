@@ -151,115 +151,108 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check existing purchase
-    const { data: existingPurchase, error: purchaseLookupError } =
+    
+    // Check whether this Razorpay payment ID has already been used.
+    const { data: paymentRecord, error: paymentRecordError } =
       await admin
         .from("purchases")
-        .select(
-          "id, user_id, semester_id, payment_id, paid, expiry_date"
-        )
-        .eq("user_id", user.id)
-        .eq("semester_id", semesterId)
+        .select("id, user_id, semester_id, payment_id, paid, expiry_date")
+        .eq("payment_id", razorpay_payment_id)
+        .limit(1)
         .maybeSingle();
 
-    if (purchaseLookupError) {
-      console.error(
-        "Purchase lookup failed:",
-        purchaseLookupError.message
-      );
-
+    if (paymentRecordError) {
+      console.error("Payment record lookup failed:", paymentRecordError);
       return NextResponse.json(
-        { error: "Could not check existing purchase." },
+        { error: "Could not validate the payment record." },
         { status: 500 }
       );
     }
 
-    // Prevent duplicate activation
-    if (
-      existingPurchase &&
-      existingPurchase.payment_id === razorpay_payment_id &&
-      existingPurchase.paid === true
-    ) {
-      return NextResponse.json({
-        verified: true,
-        activated: true,
-        message: "Payment already activated.",
-      });
-    }
+    if (paymentRecord) {
+      if (
+        paymentRecord.user_id === user.id &&
+        Number(paymentRecord.semester_id) === semesterId &&
+        paymentRecord.paid === true
+      ) {
+        return NextResponse.json({
+          verified: true,
+          activated: true,
+          message: "Payment already activated.",
+          expiryDate: paymentRecord.expiry_date,
+        });
+      }
 
-    // Don't renew active access
-    if (
-      existingPurchase &&
-      existingPurchase.paid === true &&
-      existingPurchase.expiry_date &&
-      new Date(existingPurchase.expiry_date) > new Date()
-    ) {
       return NextResponse.json(
-        {
-          error: "You already have active access to this semester.",
-        },
-        { status: 400 }
+        { error: "This payment has already been used." },
+        { status: 409 }
       );
     }
 
+    // Find the latest purchase for this student and semester.
+    // limit(1) avoids maybeSingle() failing when older duplicate rows exist.
+    const { data: existingPurchase, error: purchaseLookupError } =
+      await admin
+        .from("purchases")
+        .select("id, user_id, semester_id, payment_id, paid, expiry_date")
+        .eq("user_id", user.id)
+        .eq("semester_id", semesterId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (purchaseLookupError) {
+      console.error("Purchase lookup failed:", purchaseLookupError);
+      return NextResponse.json(
+        { error: "Could not check the existing purchase." },
+        { status: 500 }
+      );
+    }
+
+
+    
     // 2 months access
     const expiryDate = new Date();
     expiryDate.setMonth(expiryDate.getMonth() + 2);
 
-    // Update existing purchase
+    const purchaseData = {
+      user_id: user.id,
+      semester_id: semesterId,
+      payment_id: razorpay_payment_id,
+      paid: true,
+      expiry_date: expiryDate.toISOString(),
+      created_at: new Date().toISOString(),
+    };
+
+    let activationError;
+
     if (existingPurchase) {
-      const { error: updateError } = await admin
+      const { error } = await admin
         .from("purchases")
-        .update({
-          paid: true,
-          payment_id: razorpay_payment_id,
-          expiry_date: expiryDate.toISOString(),
-          created_at: new Date().toISOString(),
-        })
+        .update(purchaseData)
         .eq("id", existingPurchase.id)
         .eq("user_id", user.id);
 
-      if (updateError) {
-        console.error(
-          "Purchase update failed:",
-          updateError.message
-        );
-
-        return NextResponse.json(
-          {
-            error:
-              "Payment verified but purchase activation failed.",
-          },
-          { status: 500 }
-        );
-      }
+      activationError = error;
     } else {
-      // Create new purchase
-      const { error: insertError } = await admin
+      const { error } = await admin
         .from("purchases")
-        .insert({
-          user_id: user.id,
-          semester_id: semesterId,
-          payment_id: razorpay_payment_id,
-          paid: true,
-          expiry_date: expiryDate.toISOString(),
-          created_at: new Date().toISOString(),
-        });
+        .insert(purchaseData);
 
-      if (insertError) {
-        console.error(
-          "Purchase insert failed:",
-          insertError.message
-        );
+      activationError = error;
+    }
 
-        return NextResponse.json(
-          {
-            error:
-              "Payment verified but purchase activation failed.",
-          },
-          { status: 500 }
-        );
-      }
+    if (activationError) {
+      console.error("Purchase activation failed:", activationError);
+
+      return NextResponse.json(
+        {
+          error:
+            "Payment was verified, but access activation failed. Please contact support with your payment ID.",
+          paymentId: razorpay_payment_id,
+        },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
@@ -268,6 +261,8 @@ export async function POST(request: Request) {
       expiryDate: expiryDate.toISOString(),
       message: "Payment successful and semester access activated.",
     });
+
+
   } catch (error) {
     console.error("Payment verification failed:", error);
 
