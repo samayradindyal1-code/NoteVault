@@ -68,9 +68,7 @@ export default function Navbar() {
             <h1 className="text-2xl font-extrabold tracking-tight text-blue-700 sm:text-3xl">
               📚 NoteVault
             </h1>
-            <p className="text-xs font-medium text-gray-500">
-              by Samayra
-            </p>
+          
           </div>
         </Link>
 
