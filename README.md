@@ -6,8 +6,6 @@ A secure semester-wise notes sharing platform for BTech CSE students.
 
 - 🔐 Google Authentication
 - 📖 Semester-wise Notes
-- 💳 Subscription-based Access
-- ⏳ 3-Month Access Validity
 - 👨‍💼 Admin Dashboard
 - 📤 Upload Notes
 - ✏️ Edit Notes
@@ -31,9 +29,7 @@ A secure semester-wise notes sharing platform for BTech CSE students.
 
 ## 🚀 Upcoming Features
 
-- Razorpay Payment Gateway
 - User Dashboard
-- Purchase History
 - PDF Watermark
 - Secure PDF Viewer
 - Analytics Dashboard

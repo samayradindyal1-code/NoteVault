@@ -1,3 +1,4 @@
+
 import Link from "next/link";
 
 interface SemesterCardProps {
@@ -30,7 +31,6 @@ export default function SemesterCard({
     >
       {/* Top */}
       <div className="flex items-start justify-between">
-        {/* Book Icon */}
         <div
           className={`
             flex h-14 w-14 items-center justify-center
@@ -45,39 +45,20 @@ export default function SemesterCard({
           📚
         </div>
 
-        {/* Status */}
         {isAvailable && (
-          <span
-            className="
-              rounded-full border border-emerald-200
-              bg-emerald-50 px-3 py-1.5
-              text-xs font-semibold text-emerald-600
-            "
-          >
+          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-600">
             ● Available
           </span>
         )}
 
         {!isAvailable && !isUpcoming && (
-          <span
-            className="
-              rounded-full border border-slate-200
-              bg-slate-50 px-3 py-1.5
-              text-xs font-semibold text-slate-500
-            "
-          >
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-500">
             🔒 Locked
           </span>
         )}
 
         {isUpcoming && (
-          <span
-            className="
-              rounded-full border border-amber-200
-              bg-amber-50 px-3 py-1.5
-              text-xs font-semibold text-amber-600
-            "
-          >
+          <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-600">
             Coming Soon
           </span>
         )}
@@ -108,18 +89,18 @@ export default function SemesterCard({
         <Link
           href={route}
           className="
-  mt-8 flex w-full items-center justify-between
-  rounded-xl bg-indigo-600
-  px-5 py-3.5
-  font-semibold text-white
-  shadow-sm
-  transition-all duration-200
-  hover:-translate-y-0.5
-  hover:bg-indigo-700
-  hover:shadow-md
-  active:translate-y-0
-  active:scale-[0.98]
-"
+            mt-8 flex w-full items-center justify-between
+            rounded-xl bg-indigo-600
+            px-5 py-3.5
+            font-semibold text-white
+            shadow-sm
+            transition-all duration-200
+            hover:-translate-y-0.5
+            hover:bg-indigo-700
+            hover:shadow-md
+            active:translate-y-0
+            active:scale-[0.98]
+          "
         >
           <span>View Notes</span>
           <span className="text-lg">→</span>
@@ -130,7 +111,7 @@ export default function SemesterCard({
       {!isAvailable && !isUpcoming && (
         <div
           className="
-            mt-8 flex items-center justify-between
+            mt-8 flex items-center justify-center
             rounded-xl border border-slate-200
             bg-slate-50 px-4 py-3.5
           "
@@ -141,10 +122,6 @@ export default function SemesterCard({
               Semester Locked
             </span>
           </div>
-
-          <span className="font-bold text-slate-700">
-            ₹50
-          </span>
         </div>
       )}
 

@@ -1,7 +1,6 @@
 
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 
 interface Props {
   params: Promise<{
@@ -13,14 +12,36 @@ export default async function NotesPage({ params }: Props) {
   const { subjectId } = await params;
 
   const supabase = await createClient();
-  const admin = createAdminClient();
 
-  // 1. Get logged-in user
+  // Get logged-in user
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // 2. Get subject details
+  // Login required
+  if (!user) {
+    return (
+      <main className="min-h-screen bg-slate-50 px-6 py-12">
+        <div className="mx-auto max-w-5xl rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+          <div className="text-4xl">🔐</div>
+          <h1 className="mt-5 text-2xl font-bold text-slate-800">
+            Login Required
+          </h1>
+          <p className="mt-2 text-slate-500">
+            Please log in to access your study notes.
+          </p>
+          <Link
+            href="/login"
+            className="mt-6 inline-flex rounded-xl bg-indigo-600 px-6 py-3 font-semibold text-white hover:bg-indigo-700"
+          >
+            Login to Continue
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  // Get subject details
   const { data: subject, error: subjectError } = await supabase
     .from("subjects")
     .select("id, subject_name, semester_id")
@@ -34,11 +55,9 @@ export default async function NotesPage({ params }: Props) {
           <h1 className="text-3xl font-bold text-slate-800">
             Subject Not Found
           </h1>
-
           <p className="mt-3 text-slate-500">
             The requested subject could not be found.
           </p>
-
           <Link
             href="/semester"
             className="mt-6 inline-flex rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white hover:bg-indigo-700"
@@ -50,71 +69,31 @@ export default async function NotesPage({ params }: Props) {
     );
   }
 
-  // 3. Check whether the logged-in user is an admin
-  let isAdmin = false;
-
-  if (user) {
-    const { data: profile, error: profileError } = await admin
-      .from("users")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (!profileError && profile?.role === "admin") {
-      isAdmin = true;
-    }
-  }
-
-  // 4. Admin gets free access; students need an active purchase
-  let hasAccess = isAdmin;
-
-  if (user && !isAdmin) {
-    const { data: purchase, error: purchaseError } = await supabase
-      .from("purchases")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("semester_id", subject.semester_id)
-      .eq("paid", true)
-      .gt("expiry_date", new Date().toISOString())
-      .order("expiry_date", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (!purchaseError && purchase) {
-      hasAccess = true;
-    }
-  }
-
-  // 5. Fetch notes only when access is allowed
-  const { data: notes, error: notesError } = hasAccess
-    ? await supabase
-        .from("notes")
-        .select("id, title, pdf_url, created_at")
-        .eq("subject_id", subjectId)
-        .order("id")
-    : { data: [], error: null };
+  // Get notes for all logged-in users
+  const { data: notes, error: notesError } = await supabase
+    .from("notes")
+    .select("id, title, pdf_url, created_at")
+    .eq("subject_id", subjectId)
+    .order("id");
 
   if (notesError) {
     console.error("Notes fetch error:", notesError.message);
   }
 
-  // 6. Generate short-lived signed URLs
-  const notesWithSignedUrl = hasAccess
-    ? await Promise.all(
-        (notes || []).map(async (note) => {
-          const { data, error } = await admin.storage
-            .from("notes-pdf")
-            .createSignedUrl(note.pdf_url, 600);
+  // Generate short-lived signed URLs
+  const notesWithSignedUrl = await Promise.all(
+    (notes || []).map(async (note) => {
+      const { data, error } = await supabase.storage
+        .from("notes-pdf")
+        .createSignedUrl(note.pdf_url, 600);
 
-          return {
-            ...note,
-            signedUrl: error ? "" : data?.signedUrl ?? "",
-          };
-        })
-      )
-    : [];
+      return {
+        ...note,
+        signedUrl: error ? "" : data?.signedUrl ?? "",
+      };
+    })
+  );
 
-  // 7. Page UI
   return (
     <main className="min-h-screen bg-slate-50 px-6 py-10">
       <div className="mx-auto max-w-6xl">
@@ -129,40 +108,15 @@ export default async function NotesPage({ params }: Props) {
           <h1 className="text-4xl font-bold text-slate-900">
             {subject.subject_name}
           </h1>
-
-          <p className="mt-2 text-slate-500">Notes</p>
-
-          {isAdmin && (
-            <p className="mt-2 text-sm font-semibold text-green-700">
-              Admin access — Free
-            </p>
-          )}
+          <p className="mt-2 text-slate-500">
+            Access your study notes for free.
+          </p>
+          <p className="mt-2 text-sm font-semibold text-green-700">
+            ✓ Free access for all students
+          </p>
         </div>
 
-        {!hasAccess ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-2xl">
-              🔒
-            </div>
-
-            <h2 className="mt-5 text-2xl font-bold text-slate-800">
-              Notes Locked
-            </h2>
-
-            <p className="mt-2 text-slate-500">
-              {user
-                ? "Purchase access to view these notes."
-                : "Please log in and purchase access to view these notes."}
-            </p>
-
-            <Link
-              href={`/payment?semesterId=${subject.semester_id}`}
-              className="mt-6 inline-flex rounded-xl bg-indigo-600 px-6 py-3 font-semibold text-white transition hover:bg-indigo-700"
-            >
-              {user ? "🔄 Unlock Notes ₹50" : "🔒 Login & Unlock ₹50"}
-            </Link>
-          </div>
-        ) : notesWithSignedUrl.length > 0 ? (
+        {notesWithSignedUrl.length > 0 ? (
           <div className="space-y-5">
             {notesWithSignedUrl.map((note) => (
               <div
@@ -193,11 +147,9 @@ export default async function NotesPage({ params }: Props) {
         ) : (
           <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
             <div className="text-4xl">📚</div>
-
             <h2 className="mt-4 text-xl font-bold text-slate-800">
               No Notes Available
             </h2>
-
             <p className="mt-2 text-slate-500">
               Notes for this subject have not been uploaded yet.
             </p>

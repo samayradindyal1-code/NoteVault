@@ -1,3 +1,4 @@
+
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -29,97 +30,75 @@ export default async function ManageSemestersPage() {
     .order("id");
 
   return (
-    <main className="max-w-7xl mx-auto p-10">
+    <main className="min-h-screen bg-slate-50 px-4 py-8 sm:px-8 sm:py-10">
+      <div className="mx-auto max-w-7xl">
 
-      <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-3xl font-bold text-blue-700 sm:text-4xl">
+            Manage Semesters
+          </h1>
 
-        <h1 className="text-4xl font-bold text-blue-700">
-          Manage Semesters
-        </h1>
+          <Link
+            href="/admin/semesters/add"
+            className="inline-flex justify-center rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-700"
+          >
+            + Add Semester
+          </Link>
+        </div>
 
-        <Link
-          href="/admin/semesters/add"
-          className="rounded-lg bg-blue-600 px-5 py-3 text-white hover:bg-blue-700"
-        >
-          + Add Semester
-        </Link>
+        <div className="mt-10 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+          <table className="w-full min-w-[650px]">
 
-      </div>
-
-      <div className="mt-10 overflow-hidden rounded-xl bg-white shadow">
-
-        <table className="w-full">
-
-          <thead className="bg-slate-100">
-
-            <tr>
-
-              <th className="p-4 text-left">ID</th>
-
-              <th className="p-4 text-left">Semester</th>
-
-              <th className="p-4 text-left">Price</th>
-
-              <th className="p-4 text-left">Status</th>
-
-              <th className="p-4 text-left">Route</th>
-
-              <th className="p-4 text-left">Action</th>
-
-            </tr>
-
-          </thead>
-
-          <tbody>
-
-            {semesters?.map((semester: any) => (
-
-              <tr
-                key={semester.id}
-                className="border-t"
-              >
-
-                <td className="p-4">
-                  {semester.id}
-                </td>
-
-                <td className="p-4">
-                  {semester.name}
-                </td>
-
-                <td className="p-4">
-                  ₹{semester.price}
-                </td>
-
-                <td className="p-4 capitalize">
-                  {semester.status}
-                </td>
-
-                <td className="p-4">
-                  {semester.route}
-                </td>
-
-                <td className="p-4">
-
-                  <Link
-                    href={`/admin/semesters/edit/${semester.id}`}
-                    className="rounded bg-yellow-500 px-4 py-2 text-white"
-                  >
-                    Edit
-                  </Link>
-
-                </td>
-
+            <thead className="bg-slate-100">
+              <tr>
+                <th className="p-4 text-left">ID</th>
+                <th className="p-4 text-left">Semester</th>
+                <th className="p-4 text-left">Status</th>
+                <th className="p-4 text-left">Route</th>
+                <th className="p-4 text-left">Action</th>
               </tr>
+            </thead>
 
-            ))}
+            <tbody>
+              {semesters?.map((semester: any) => (
+                <tr key={semester.id} className="border-t">
+                  <td className="p-4">{semester.id}</td>
 
-          </tbody>
+                  <td className="p-4 font-medium">
+                    {semester.name}
+                  </td>
 
-        </table>
+                  <td className="p-4 capitalize">
+                    {semester.status}
+                  </td>
 
+                  <td className="p-4 text-sm text-slate-600">
+                    {semester.route}
+                  </td>
+
+                  <td className="p-4">
+                    <Link
+                      href={`/admin/semesters/edit/${semester.id}`}
+                      className="inline-flex rounded-lg bg-yellow-500 px-4 py-2 font-medium text-white transition hover:bg-yellow-600"
+                    >
+                      Edit
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+
+              {!semesters?.length && (
+                <tr>
+                  <td colSpan={5} className="p-6 text-center text-slate-500">
+                    No semesters found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+
+          </table>
+        </div>
       </div>
-
     </main>
   );
 }

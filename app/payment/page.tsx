@@ -1,12 +1,6 @@
-"use client";
 
-import { Suspense } from "react";
-import PaymentContent from "./PaymentContent";
+import { redirect } from "next/navigation";
 
 export default function PaymentPage() {
-  return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <PaymentContent />
-    </Suspense>
-  );
+  redirect("/semester");
 }
